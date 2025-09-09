@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 분류 데모</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <style>
+    :root{
+      --bg:#0b1020; --card:#121a33; --muted:#8ea0c7; --text:#eaf0ff; --accent:#7aa2ff; --border:#1f2a4d;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Pretendard,Apple SD Gothic Neo,Noto Sans KR,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#0b1020,#0b1020 40%,#0d1430);color:var(--text)}
+    .wrap{max-width:1000px;margin:40px auto;padding:0 16px}
+
+    .hero{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:18px}
+    .title{font-weight:800;font-size:clamp(24px,4vw,36px);letter-spacing:0.2px}
+    .subtitle{color:var(--muted);font-size:14px}
+
+    .tabs{display:flex;gap:8px;margin:14px 0 18px}
+    .tab{border:1px solid var(--border);background:rgba(255,255,255,.02);padding:10px 14px;border-radius:14px;cursor:pointer;font-weight:600;color:var(--muted)}
+    .tab.active{background:var(--card);color:var(--text);border-color:#2a386b;box-shadow:0 6px 18px rgba(64,96,255,.15) inset}
+
+    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+
+    .card{background:var(--card);border:1px solid var(--border);border-radius:18px;overflow:hidden}
+    .card h3{margin:0;padding:14px 16px;border-bottom:1px solid var(--border);font-size:16px}
+    .card .body{padding:14px 16px}
+    .muted{color:var(--muted);font-size:13px}
+
+    input[type=file]{display:block;width:100%;padding:10px;background:#0f1630;border:1px dashed #2a386b;color:#cfe0ff;border-radius:12px}
+    button{appearance:none;border:0;background:linear-gradient(180deg,#6e8dff,#5678ff);color:white;font-weight:700;padding:10px 14px;border-radius:12px;cursor:pointer;box-shadow:0 6px 20px rgba(86,120,255,.35)}
+    button[disabled]{opacity:.65;cursor:not-allowed;box-shadow:none}
+    .btn-ghost{background:transparent;border:1px solid var(--border);box-shadow:none;color:var(--muted)}
+
+    .preview{display:flex;align-items:center;justify-content:center;min-height:320px;background:#0f1630;border:1px solid #1b2650;border-radius:12px;overflow:hidden}
+    .preview img{max-width:100%;max-height:480px;display:block}
+
+    .result{display:flex;flex-direction:column;gap:8px}
+    .row{display:flex;align-items:center;gap:10px}
+    .label{min-width:160px}
+    .bar{flex:1;height:12px;background:#0f1630;border:1px solid #1f2a4d;border-radius:999px;overflow:hidden}
+    .bar > span{display:block;height:100%;background:linear-gradient(90deg,#7aa2ff,#6ee7ff)}
+
+    .footer{margin-top:22px;color:#99abda;font-size:12px}
+    .kbd{display:inline-block;border:1px solid var(--border);background:#0f1630;border-radius:6px;padding:2px 6px;font-family:ui-monospace,Consolas,Monaco,monospace;font-size:12px}
+
+    textarea{width:100%;min-height:140px;background:#0f1630;border:1px solid #1b2650;color:#dcebff;border-radius:12px;padding:10px}
+    .chips{display:flex;flex-wrap:wrap;gap:8px}
+    .chip{padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:#0f1630;color:#cfe0ff;font-size:12px}
+    .chip.bad{border-color:#5c2330;background:#1b0e15}
+    .chip.good{border-color:#1e5130;background:#0f1a13}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div>
+        <div class="title">AI 분류 데모</div>
+        <div class="subtitle">이미지(사물) 분류 · 문장 유해성 분류 — 둘 다 브라우저에서 동작 (서버/가입 불필요)</div>
+      </div>
+      <div style="display:flex; gap:8px"><button id="btnAbout" class="btn-ghost">도움말</button><button id="btnDiag" class="btn-ghost">진단</button></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="image">🖼️ 이미지 분류</button>
+      <button class="tab" data-tab="text">📝 문장 분류</button>
+    </div>
+
+    <!-- IMAGE TAB -->
+    <section id="tab-image" class="tabview">
+      <div class="grid">
+        <div class="card">
+          <h3>1) 이미지 업로드</h3>
+          <div class="body">
+            <input id="fileInput" type="file" accept="image/*" />
+            <div class="muted" style="margin-top:8px;">* JPG/PNG 추천. 파일을 고르면 자동으로 예측합니다.</div>
+            <div class="preview" style="margin-top:12px;">
+              <img id="previewImg" alt="미리보기" />
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+              <button id="btnClassify" disabled>예측 실행</button>
+              <button id="btnClear" class="btn-ghost">지우기</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>2) 예측 결과</h3>
+          <div class="body">
+            <div id="imgStatus" class="muted">모델 로딩 중...</div>
+            <div id="imgResult" class="result" style="margin-top:10px;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TEXT TAB -->
+    <section id="tab-text" class="tabview" hidden>
+      <div class="grid">
+        <div class="card">
+          <h3>1) 문장 입력</h3>
+          <div class="body">
+            <textarea id="txtInput" placeholder="검사할 문장을 입력하세요 (예: 너 정말 못됐어)"></textarea>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+              <button id="btnToxic">유해성 분석</button>
+              <button id="btnToxicClear" class="btn-ghost">지우기</button>
+            </div>
+            <div class="muted" style="margin-top:8px;">* 브라우저에서만 처리되어 서버로 문장이 전송되지 않습니다.</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>2) 분석 결과</h3>
+          <div class="body">
+            <div id="toxStatus" class="muted">모델 로딩 중...</div>
+            <div id="toxChips" class="chips" style="margin-top:10px;"></div>
+            <div id="toxDetail" style="margin-top:10px;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer">
+      <b>배포</b>: 이 파일 하나만 <span class="kbd">index.html</span>로 저장 → GitHub Pages 또는 Vercel에 업로드하면 바로 웹사이트가 됩니다.
+    </div>
+  </div>
+
+  <!-- TensorFlow.js & 모델들 (지연 로딩) -->
+  <script>
+    // ===== 유틸: 다중 CDN 시도 로더 =====
+    async function loadAnyScript(urls){
+      let lastErr;
+      for(const url of urls){
+        try{
+          await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=url;s.onload=resolve;s.onerror=()=>reject(new Error('fail '+url));s.crossOrigin='anonymous';document.head.appendChild(s)});
+          return; // 성공
+        }catch(e){ lastErr = e; }
+      }
+      throw lastErr || new Error('모든 CDN 로딩 실패');
+    }
+
+    // 탭 전환
+    const tabButtons = document.querySelectorAll('.tab');
+    const views = { image: document.getElementById('tab-image'), text: document.getElementById('tab-text') };
+    tabButtons.forEach(btn=>btn.addEventListener('click',()=>{
+      tabButtons.forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const id = btn.dataset.tab;
+      Object.keys(views).forEach(k=>views[k].hidden = (k!==id));
+    }));
+
+    const imgStatus = document.getElementById('imgStatus');
+    const imgResult = document.getElementById('imgResult');
+    const fileInput = document.getElementById('fileInput');
+    const previewImg = document.getElementById('previewImg');
+    const btnClassify = document.getElementById('btnClassify');
+    const btnClear = document.getElementById('btnClear');
+
+    let mobilenetModel = null;
+    let toxModel = null;
+
+    async function ensureTf(){
+      if(window.tf) return;
+      await loadAnyScript([
+        'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.18.0/dist/tf.min.js',
+        'https://unpkg.com/@tensorflow/tfjs@4.18.0/dist/tf.min.js'
+      ]);
+    }
+
+    async function loadMobilenet(){
+      if(mobilenetModel) return mobilenetModel;
+      await ensureTf();
+      await loadAnyScript([
+        'https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0',
+        'https://unpkg.com/@tensorflow-models/mobilenet@2.1.0'
+      ]);
+      imgStatus.textContent = '모델 로딩 중...';
+      mobilenetModel = await window.mobilenet.load({version:2, alpha:1.0});
+      imgStatus.textContent = '준비 완료! 이미지를 올리면 예측합니다.';
+      btnClassify.disabled = !previewImg.src;
+      return mobilenetModel;
+    }
+
+    async function loadToxicity(){
+      if(toxModel) return toxModel;
+      await ensureTf();
+      await loadAnyScript([
+        'https://cdn.jsdelivr.net/npm/@tensorflow-models/toxicity@1.2.2',
+        'https://unpkg.com/@tensorflow-models/toxicity@1.2.2'
+      ]);
+      document.getElementById('toxStatus').textContent = '모델 로딩 중...';
+      toxModel = await window.toxicity.load(0.85);
+      document.getElementById('toxStatus').textContent = '준비 완료! 문장을 입력하고 분석하세요.';
+      return toxModel;
+    }
+
+    // 초기 모델 프리로드 (유저 경험 개선)
+    loadMobilenet().catch((e)=>{console.error(e);imgStatus.textContent='모델 로딩 실패(CDN 차단 가능). 우측 상단 "진단"을 눌러 해결책을 확인하세요.'});
+    loadToxicity().catch(()=>{document.getElementById('toxStatus').textContent='모델 로딩 실패(CDN 차단 가능). "진단"을 눌러 해결책을 확인하세요.'});
+
+    // 이미지 업로드 처리
+    fileInput.addEventListener('change', async (e)=>{
+      const file = e.target.files?.[0];
+      if(!file) return;
+      const url = URL.createObjectURL(file);
+      previewImg.src = url;
+      try{ await loadMobilenet(); classifyImage(); }catch{}
+    });
+
+    btnClassify.addEventListener('click', classifyImage);
+    btnClear.addEventListener('click', ()=>{
+      fileInput.value = '';
+      previewImg.removeAttribute('src');
+      imgResult.innerHTML = '';
+      btnClassify.disabled = true;
+    });
+
+    async function classifyImage(){
+      if(!previewImg.src){return}
+      btnClassify.disabled = true; imgStatus.textContent = '예측 중...';
+      try{
+        const model = await loadMobilenet();
+        const preds = await model.classify(previewImg, 5);
+        renderImgResult(preds);
+        imgStatus.textContent = '완료 ✅';
+      }catch(err){
+        console.error(err);
+        imgStatus.textContent = '예측 실패. 이미지가 너무 크면 축소해서 시도하거나 진단을 확인하세요.';
+      }finally{btnClassify.disabled = false}
+    }
+
+    function renderImgResult(preds){
+      imgResult.innerHTML = '';
+      preds.forEach(p=>{
+        const row = document.createElement('div'); row.className='row';
+        const label = document.createElement('div'); label.className='label'; label.textContent = `${p.className}`;
+        const bar = document.createElement('div'); bar.className='bar';
+        const span = document.createElement('span'); span.style.width = `${Math.round(p.probability*100)}%`;
+        bar.appendChild(span);
+        const pct = document.createElement('div'); pct.style.minWidth='48px'; pct.textContent = `${(p.probability*100).toFixed(1)}%`;
+        row.append(label, bar, pct);
+        imgResult.appendChild(row);
+      });
+    }
+
+    // 텍스트 유해성 분석
+    const btnToxic = document.getElementById('btnToxic');
+    const btnToxicClear = document.getElementById('btnToxicClear');
+    const txtInput = document.getElementById('txtInput');
+
+    btnToxic.addEventListener('click', async ()=>{
+      const text = txtInput.value.trim();
+      if(!text){alert('문장을 입력하세요.');return}
+      try{
+        const model = await loadToxicity();
+        document.getElementById('toxStatus').textContent = '분석 중...';
+        const results = await model.classify([text]);
+        renderToxic(results);
+        document.getElementById('toxStatus').textContent = '완료 ✅';
+      }catch(e){
+        console.error(e);
+        document.getElementById('toxStatus').textContent = '분석 실패. "진단"을 눌러 해결책을 보세요.';
+      }
+    });
+
+    btnToxicClear.addEventListener('click',()=>{
+      txtInput.value='';
+      document.getElementById('toxChips').innerHTML='';
+      document.getElementById('toxDetail').innerHTML='';
+    });
+
+    function renderToxic(results){
+      const chips = document.getElementById('toxChips'); chips.innerHTML='';
+      const detail = document.getElementById('toxDetail'); detail.innerHTML='';
+      const mapKo = {
+        'identity_attack':'정체성 공격','insult':'모욕','obscene':'음란','severe_toxicity':'강한 유해성','sexual_explicit':'성적 노골성','threat':'협박','toxicity':'유해성(종합)'
+      };
+      const ul = document.createElement('ul'); ul.style.listStyle='none'; ul.style.padding=0; ul.style.margin=0;
+      results.forEach(r=>{
+        const match = r.results[0].match;
+        const prob = r.results[0].probabilities[1];
+        const row = document.createElement('div'); row.className='row';
+        const label = document.createElement('div'); label.className='label'; label.textContent = mapKo[r.label]||r.label;
+        const bar = document.createElement('div'); bar.className='bar';
+        const span = document.createElement('span'); span.style.width = `${Math.round(prob*100)}%`;
+        bar.appendChild(span);
+        const pct = document.createElement('div'); pct.style.minWidth='48px'; pct.textContent = `${(prob*100).toFixed(1)}%`;
+        row.append(label, bar, pct);
+        ul.appendChild(row);
+
+        const chip = document.createElement('span'); chip.className='chip ' + (match?'bad':'good');
+        chip.textContent = `${mapKo[r.label]||r.label}: ${ (prob*100).toFixed(1) }%`;
+        chips.appendChild(chip);
+      });
+      detail.appendChild(ul);
+    }
+
+    // 도움말 & 진단
+    document.getElementById('btnAbout').addEventListener('click',()=>{
+      alert(`사용법\n\n[이미지 분류]\n1) 이미지를 업로드하면 자동 예측합니다.\n2) 상단 5개 결과와 확률 표시(MobileNet v2).\n\n[문장 분류]\n1) 문장을 입력하고 [유해성 분석].\n2) 각 항목의 확률 표시.\n\n개인정보\n- 모든 처리는 브라우저에서만 이루어집니다.`);
+    });
+
+    document.getElementById('btnDiag').addEventListener('click',()=>{
+      const lines = [];
+      lines.push('[진단 시작]');
+      lines.push('인터넷 연결 필요: jsDelivr 또는 unpkg에서 스크립트 로드');
+      lines.push('tf 존재 여부: ' + (!!window.tf));
+      lines.push('WebGL 지원: ' + (!!window.WebGLRenderingContext));
+      lines.push('모바일넷 모델 로딩 여부: ' + (!!mobilenetModel));
+      lines.push('유해성 모델 로딩 여부: ' + (!!toxModel));
+      lines.push('브라우저: ' + navigator.userAgent);
+      alert(lines.join('\n'));
+    });
+  </script>
+</body>
+</html>
